@@ -91,7 +91,7 @@ kubectl -n emojivoto port-forward svc/web-svc 8080:80
 
 App is available at http://localhost:8080
 
-![Tracing Topology(https://linkerd.io/images/tracing/tracing-topology.svg)
+![Tracing Topology](https://linkerd.io/images/tracing/tracing-topology.svg)
 
 ## Mesh demo app
 ```
