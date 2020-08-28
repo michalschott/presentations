@@ -218,7 +218,7 @@ patchesStrategicMerge:
 ' > kustomization.yaml
 
 kubectl apply -k .
-k -n linkerd describe deploy linkerd-controller | grep -i prioriry
+kubectl -n linkerd describe deploy linkerd-controller | grep -i priority
 ```
 
 More - https://linkerd.io/2/tasks/customize-install/
