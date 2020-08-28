@@ -41,9 +41,12 @@ The control plane takes a set of isolated stateless sidecar proxies and turns th
 * traffic split
 * ...
 
-## Create cluster with kind (3 workers):
+## Create cluster with kind (4 workers):
 
 Grab kind binary from https://github.com/kubernetes-sigs/kind
+
+**NOTE**
+> I've assigned 6CPUs and 6GB memory to my docker daemon.
 
 ```
 cat <<< '
@@ -54,8 +57,9 @@ nodes:
 - role: worker
 - role: worker
 - role: worker
+- role: worker
 ' > kind-config.yml
-kind create cluster --name linkerd2-demo --config kind-config.yml
+kind create cluster --name linkerd2-demo --config kind-config.yml --wait 5m
 ```
 
 ## Get linkerd2 2.8.0 and 2.8.1 binaries from github
@@ -104,18 +108,18 @@ linkerd -n emojivoto tap deploy/web
 
 ## Automatic proxy injection
 
-Linkerd automatically adds the data plane proxy to pods when the linkerd.io/inject: enabled annotation is present on a namespace or any workloads such as deployments or pods.
+Linkerd automatically adds the data plane proxy to pods when the `linkerd.io/inject: enabled` annotation is present on a namespace or any workloads such as deployments or pods.
 
 Proxy injection is implemented as a Kubernetes admission webhook. This means that the proxies are added to pods within the Kubernetes cluster itself, regardless of whether the pods are created by kubectl, a CI/CD system, or any other system.
 
 For each pod, two containers are injected:
 
-1. linkerd-init, a Kubernetes Init Container that configures iptables to automatically forward all incoming and outgoing TCP traffic through the proxy. (Note that this container is not present if the Linkerd CNI Plugin has been enabled.)
-2. linkerd-proxy, the Linkerd data plane proxy itself.
+1. `linkerd-init`, a Kubernetes Init Container that configures iptables to automatically forward all incoming and outgoing TCP traffic through the proxy. (Note that this container is not present if the Linkerd CNI Plugin has been enabled.)
+2. `linkerd-proxy`, the Linkerd data plane proxy itself.
 
 Note that simply adding the annotation to a resource with pre-existing pods will not automatically inject those pods. You will need to update the pods (e.g. with kubectl rollout restart etc.) for them to be injected. This is because Kubernetes does not call the webhook until it needs to update the underlying resources.
 
-Automatic injection can be disabled for a pod or deployment for which it would otherwise be enabled, by adding the linkerd.io/inject: disabled annotation.
+Automatic injection can be disabled for a pod or deployment for which it would otherwise be enabled, by adding the `linkerd.io/inject: disabled` annotation.
 
 ## Validate mTLS
 ```
@@ -142,16 +146,8 @@ linkerd -n emojivoto check --proxy
 ## Upgrade data plane to linkerd 2.8.1
 ```
 linkerd -n emojivoto check --proxy
-kubectl -n emojivoto delete pod --all --wait=false
+kubectl rollout restart -n emojivoto deploy/emoji deploy/voting deploy/web deploy/vote-bot
 linkerd -n emojivoto check --proxy
-```
-
-## Upgrade control plane to HA
-```
-linkerd upgrade --ha | kubectl apply -f -
-linkerd check
-kubectl label ns kube-system config.linkerd.io/admission-webhooks=disabled
-linkerd check
 ```
 
 ## Restrict dashboard privileges to disallow Tap
@@ -161,6 +157,14 @@ kubectl delete clusterrolebindings/linkerd-linkerd-web-admin
 ```
 
 More info available [here](https://linkerd.io/2/tasks/securing-your-cluster/)
+
+## Upgrade control plane to HA
+```
+linkerd upgrade --ha | kubectl apply -f -
+linkerd check
+kubectl label ns kube-system config.linkerd.io/admission-webhooks=disabled
+linkerd check
+```
 
 ## Customize installation
 
@@ -207,13 +211,14 @@ spec:
 
 cat <<< '
 resources:
-- priority-class.yaml
+- linkerd-priority-class.yaml
 - linkerd.yaml
 patchesStrategicMerge:
 - patch-priority-class.yaml
 ' > kustomization.yaml
 
-kubectl kustomize build . | kubectl apply -f -
+kubectl apply -k .
+k -n linkerd describe deploy linkerd-controller | grep -i prioriry
 ```
 
 More - https://linkerd.io/2/tasks/customize-install/
